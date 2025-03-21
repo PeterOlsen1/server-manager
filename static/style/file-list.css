@@ -24,7 +24,6 @@ input {
 main {
     display: flex;
     justify-content: center;
-    gap: 1em;
 }
 
 .main-left {
@@ -44,6 +43,11 @@ main {
 
     height: calc(100vh - 3em);
     overflow-y: scroll;
+
+    .title {
+        margin-top: 1em;
+        font-weight: 600;
+    }
 }
 
 .left-dir-entry {
@@ -74,6 +78,7 @@ main {
     gap: 1em;
     padding-top: 2em;
     padding-right: 1em;
+    padding-left: 1em;
 }
 
 .flex-center {

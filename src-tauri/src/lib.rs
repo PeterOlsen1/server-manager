@@ -117,7 +117,7 @@ fn read_submission_dir() -> String {
 /// This should boot up a server for the given student ID
 /// and return the process ID so that we can kill it later.
 #[tauri::command]
-fn handle_student_click(submission_id: String) -> String {
+fn handle_student_click(submission_id: String, port: i32) -> String {
     let mut submission_path = format!("./submission_{}", submission_id);
     if !Path::new(&submission_path).exists() {
         return "No submission found for this student".to_string();
@@ -171,7 +171,7 @@ fn handle_student_click(submission_id: String) -> String {
             //at this point we need to fork and exec the server
             //use python3 since i assume we are all grading on linux machines
             let child_result = if file_name.ends_with(".py") {
-                run_python_server(file_name.to_string())
+                run_python_server(file_name.to_string(), port)
             } else {
                 Command::new("node")
                     .arg(&file_name)
@@ -197,19 +197,28 @@ fn handle_student_click(submission_id: String) -> String {
 }
 
 #[tauri::command]
-fn run_python_server(fname: String) -> Result<std::process::Child, std::io::Error> {
-    let mut child = match Command::new("python3")
+fn run_python_server(fname: String, port: i32) -> Result<std::process::Child, std::io::Error> {
+    let child = if port > 0 {
+        Command::new("python3")
+        .arg(&fname)
+        .arg(&port.to_string())
+        .stdout(Stdio::piped())
+        .spawn()
+    }
+    else {
+        Command::new("python3")
         .arg(&fname)
         .stdout(Stdio::piped())
         .spawn()
-    {
+    };
+
+    let ret_child = match child {
         Ok(child) => child,
         Err(e) => {
             // app_handle.emit("python-output", format!("Error: {}", e)).unwrap();
             return Err(e);
         }
     };
-
     // thread::spawn({
     //     let app_handle = Arc::clone(&app_handle);
     //     move || {
@@ -222,7 +231,7 @@ fn run_python_server(fname: String) -> Result<std::process::Child, std::io::Erro
     //     }
     // });
 
-    Ok(child)
+    Ok(ret_child)
 }
 
 #[tauri::command]

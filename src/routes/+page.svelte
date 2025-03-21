@@ -10,10 +10,11 @@
     }
 
     let lsData: string[] = $state([]);
-    let dirName: string = $state("");
+    // let dirName: string = $state("");
+    let port: string = $state('4131');
+    let portEnabled = $state(false);
     let cdData: string = $state("");
     let lsDirData: string[] = $state([]);
-    let serverMode: boolean = $state(false);
     let studentSubmissions: any[] = $state([]);
     let currentStudent: Student | null = $state(null);
     let currentPid = 0;
@@ -29,7 +30,6 @@
     async function pwd() {
         cdData = await invoke("pwd");
     }
-    pwd();
 
     async function ls_directories() {
         lsDirData = (await invoke("ls_directories") as string).split("\n");
@@ -41,6 +41,7 @@
     function toggleDirs() {
         if (lsDirData.length > 0) {
             lsDirData = [];
+            studentSubmissions = [];
         } else {
             ls_directories();
         }
@@ -77,7 +78,8 @@
             submissionJSON = JSON.parse(submissionDir);
         }
         catch {
-            // JSON parsing an error string, there is no YAML file in here
+            // error from JSON parsing an error string, there is no YAML file in here
+            studentSubmissions = [];
             return;
         }
 
@@ -109,11 +111,20 @@
     }
 
     async function handleStudentClick(student: Student) {
+        let realPort = parseInt(port);
+        if (isNaN(realPort) || realPort < 1 || realPort > 65535) {
+            console.log("invalid port: " + port);
+            return;
+        }
+
         if (currentPid) {
             await killServer(currentPid);
         }
 
-        const data = await invoke("handle_student_click", {submissionId: student.submissionId});
+        //construct arguments and start the server
+        const args: any = {submissionId: student.submissionId}
+        args.port = portEnabled ? realPort : 0;
+        const data = await invoke("handle_student_click", args);
 
         if (!parseInt(data as string)) {
             console.log("error starting server: " + data);
@@ -129,10 +140,9 @@
         currentPid = 0;
     }
 
-    // onMount(async () => {
-    //     const data = await invoke("read_submission_dir");
-    //     console.log(JSON.parse(data as any));
-    // })
+    onMount(() => {
+        pwd();
+    })
 </script>
 
 <svelte:head>
@@ -142,8 +152,7 @@
 <main>
     {#if studentSubmissions.length > 0}
         <div class="main-left">
-            <br>
-            <div>
+            <div class="title">
                 student submissions
             </div>
             {#each studentSubmissions as student}
@@ -167,7 +176,7 @@
             </small>
             <div>
                 <button onclick={openDirectory}>
-                    open submissions folder
+                    open folder
                 </button>
                 <button onclick={toggleDirs}>
                     {lsDirData.length > 0 ? "hide" : "list"}
@@ -177,13 +186,16 @@
                     {lsData.length > 0 ? "hide" : "list"}
                     files
                 </button>
-                <button onclick={() => serverMode = !serverMode}>
-                    {serverMode ? "disable" : "enable"} server mode
-                </button>
             </div>
-            <div>
+            <!-- <div>
                 <input type="text" bind:value={dirName}>
                 <button onclick={() => cd(dirName)}>change directory</button>
+            </div> -->
+            <div>
+                <input type="text" bind:value={port} style="{portEnabled ? '' : 'border: 1px solid gray; color: gray'}" disabled={!portEnabled}>
+                <button onclick={() => portEnabled = !portEnabled}>
+                    {portEnabled ? "disable" : "enable"} port argument
+                </button>
             </div>
         </div>
         <div class="flex-center">
@@ -195,24 +207,31 @@
                     kill server
                 </button>
             {/if}
-            <div>
-                directories
-            </div>
-            <div class="dir-list">
-                {#each lsDirData as dir}
-                    {#if dir}
-                        <div class="dir-entry" onclick={() => handleDirClick(dir)}>
-                            {dir}
-                        </div>
-                    {/if}
-                {/each}
-            </div>
+            {#if lsDirData.length > 0}
+                <div style="font-weight: 600;">
+                    directories
+                </div>
+                <div class="dir-list">
+                    {#each lsDirData as dir}
+                        {#if dir}
+                            <div class="dir-entry" onclick={() => handleDirClick(dir)}>
+                                {dir}
+                            </div>
+                        {/if}
+                    {/each}
+                </div>
+            {/if}
         </div>
-        <p>
-            {#each lsData as file}
-                {file}
-                <br>
-            {/each}
-        </p>
+        <div class="flex-center">
+            {#if lsData.length > 0}
+                <div style="font-weight: 600;">
+                    files
+                </div>
+                {#each lsData as file}
+                    {file}
+                    <br>
+                {/each}
+            {/if}
+        </div>
     </div>
 </main>
