@@ -1,0 +1,60 @@
+button {
+    border: 1px solid rgb(255, 255, 255);
+    padding: 0.5em 1em;
+    border-radius: 0.25em;
+    /* background-color: white; */
+
+    transition: background-color 0.1s;
+
+    &:hover {
+        background-color: rgba(200, 200, 200, 0.2);
+        cursor: pointer;
+    }
+}
+
+input {
+    background-color: transparent;
+    outline: 0;
+    border: 1px solid white;
+    color: white;
+    padding: 0.5em 1em;
+}
+
+main {
+    display: flex;
+    justify-content: center;
+    flex-direction: column;
+    align-items: center;
+    gap: 1em;
+}
+
+.flex-center {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    gap: 0.5em;
+}
+
+.dir-list {
+    width: 95vw;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(13em, 3fr));
+    gap: 0.25em;
+}
+
+.dir-entry {
+    border: 1px solid white;
+    display: grid;
+    place-items: center;
+    padding: 0.25em;
+    cursor: pointer;
+    border-radius: 0.25em;
+    background-color: transparent;
+
+    transition: background-color 0.1s;
+
+    &:hover {
+        background-color: rgba(200, 200, 200, 0.2);
+    }
+}

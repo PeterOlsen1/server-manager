@@ -1,0 +1,200 @@
+<script lang="ts">
+    import { invoke } from "@tauri-apps/api/core";
+    import { open } from '@tauri-apps/plugin-dialog';
+    import { onMount } from "svelte";
+
+    interface Student {
+        sid: string;
+        text: string;
+        submissionId: string;
+    }
+
+    let lsData: string[] = $state([]);
+    let dirName: string = $state("");
+    let cdData: string = $state("");
+    let lsDirData: string[] = $state([]);
+    let serverMode: boolean = $state(false);
+    let studentSubmissions: any[] = $state([]);
+    let currentStudent: Student | null = $state(null);
+    let currentPid = 0;
+
+    async function ls() {
+        if (lsData.length) {
+            lsData = [];
+            return;
+        }
+        lsData = (await invoke("ls") as string).split("\n");
+    }
+
+    async function pwd() {
+        cdData = await invoke("pwd");
+    }
+    pwd();
+
+    async function ls_directories() {
+        lsDirData = (await invoke("ls_directories") as string).split("\n");
+        lsDirData.unshift("..");
+
+        getAllSubmitters();
+    }
+
+    function toggleDirs() {
+        if (lsDirData.length > 0) {
+            lsDirData = [];
+        } else {
+            ls_directories();
+        }
+    }
+
+    async function openDirectory() {
+        const dir = await open({
+            directory: true,
+            multiple: false,
+        });
+        
+        if (dir) {
+            cd(dir);
+        }
+    }
+
+    async function cd(name: string) {
+        cdData = await invoke("cd", { name });
+        // lsData = (await invoke("ls") as string).split("\n");
+        if (lsDirData.length > 0) {
+            ls_directories();
+        }
+    }
+
+    async function handleDirClick(dir: string) {
+        console.log(dir);
+        cd(dir);
+    }
+
+    async function getAllSubmitters() {
+        let submissionDir = await invoke("read_submission_dir") as string;
+        let submissionJSON: any;
+        try {
+            submissionJSON = JSON.parse(submissionDir);
+        }
+        catch {
+            // JSON parsing an error string, there is no YAML file in here
+            return;
+        }
+
+        //reset student submissions before looping over each and adding it
+        studentSubmissions = [];
+        Object.keys(submissionJSON).forEach((key) => {
+            try {
+                const studentData = submissionJSON[key].submitters[0];
+                const submissionId = key.split('_')[1];
+                const obj: Student = {
+                    text: `${studentData.name} (${submissionId})`,
+                    sid: studentData.sid,
+                    submissionId
+                }
+                studentSubmissions.push(obj);
+            }
+            catch {
+                console.log("error parsing student data");
+                return;
+            }
+        })
+
+        //sort all submissions by last name
+        studentSubmissions.sort((a, b) => {
+            const textA = a.text.split(' ')[1];
+            const textB = b.text.split(' ')[1];
+            return textA.localeCompare(textB);
+        });
+    }
+
+    async function handleStudentClick(student: Student) {
+        if (currentPid) {
+            await killServer(currentPid);
+        }
+
+        const data = await invoke("handle_student_click", {submissionId: student.submissionId});
+        currentStudent = student;
+        currentPid = parseInt(data as string);
+    }
+
+    async function killServer(pid: number) {
+        await invoke("kill_server", {pid});
+        currentStudent = null;
+        currentPid = 0;
+    }
+
+    // onMount(async () => {
+    //     const data = await invoke("read_submission_dir");
+    //     console.log(JSON.parse(data as any));
+    // })
+</script>
+
+<svelte:head>
+    <link rel="stylesheet" href="/style/file-list.css">
+</svelte:head>
+
+<main>
+    <div class="flex-center">
+        directory operations
+        <small>
+            ({cdData})
+        </small>
+        <div>
+            <button onclick={openDirectory}>
+                open submissions folder
+            </button>
+            <button onclick={toggleDirs}>
+                {lsDirData.length > 0 ? "hide" : "list"}
+                directories
+            </button>
+            <button onclick={ls}>
+                {lsData.length > 0 ? "hide" : "list"}
+                files
+            </button>
+            <button onclick={() => serverMode = !serverMode}>
+                {serverMode ? "disable" : "enable"} server mode
+            </button>
+        </div>
+        <div>
+            <input type="text" bind:value={dirName}>
+            <button onclick={() => cd(dirName)}>change directory</button>
+        </div>
+    </div>
+    <div class="flex-center">
+        {#if currentStudent}
+            <div>
+                currently running: {currentStudent.text.split('(')[0]}
+            </div>
+            <button onclick={() => killServer(currentPid)}>
+                kill server
+            </button>
+        {/if}
+        <div>
+            directories
+        </div>
+        <div class="dir-list">
+            {#if studentSubmissions.length > 0}
+                {#each studentSubmissions as student}
+                    <div class="dir-entry" onclick={() => handleStudentClick(student)}>
+                        {student.text}
+                    </div>
+                {/each}
+            {:else}
+                {#each lsDirData as dir}
+                    {#if dir}
+                        <div class="dir-entry" onclick={() => handleDirClick(dir)}>
+                            {dir}
+                        </div>
+                    {/if}
+                {/each}
+            {/if}
+        </div>
+    </div>
+    <p>
+        {#each lsData as file}
+            {file}
+            <br>
+        {/each}
+    </p>
+</main>
