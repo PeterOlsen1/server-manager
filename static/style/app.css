@@ -7,4 +7,5 @@ html, body {
     color: white;
     background-color: rgb(55, 55, 55);
     overflow-x: hidden;
+    overflow-y: hidden;
 }

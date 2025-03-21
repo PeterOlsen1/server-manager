@@ -1,11 +1,7 @@
 use std::path::Path;
 use std::{collections::HashMap, fs};
-use std::sync::Arc;
-use std::thread;
 use std::process::{Command, Stdio};
-use std::io::{BufRead, BufReader};
 
-use tauri::Manager;
 use serde::{Deserialize, Serialize};
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 

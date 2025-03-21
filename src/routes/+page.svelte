@@ -114,6 +114,11 @@
         }
 
         const data = await invoke("handle_student_click", {submissionId: student.submissionId});
+
+        if (!parseInt(data as string)) {
+            console.log("error starting server: " + data);
+            return;
+        }
         currentStudent = student;
         currentPid = parseInt(data as string);
     }
@@ -135,52 +140,65 @@
 </svelte:head>
 
 <main>
-    <div class="flex-center">
-        directory operations
-        <small>
-            ({cdData})
-        </small>
-        <div>
-            <button onclick={openDirectory}>
-                open submissions folder
-            </button>
-            <button onclick={toggleDirs}>
-                {lsDirData.length > 0 ? "hide" : "list"}
-                directories
-            </button>
-            <button onclick={ls}>
-                {lsData.length > 0 ? "hide" : "list"}
-                files
-            </button>
-            <button onclick={() => serverMode = !serverMode}>
-                {serverMode ? "disable" : "enable"} server mode
-            </button>
-        </div>
-        <div>
-            <input type="text" bind:value={dirName}>
-            <button onclick={() => cd(dirName)}>change directory</button>
-        </div>
-    </div>
-    <div class="flex-center">
-        {#if currentStudent}
+    {#if studentSubmissions.length > 0}
+        <div class="main-left">
+            <br>
             <div>
-                currently running: {currentStudent.text.split('(')[0]}
+                student submissions
             </div>
-            <button onclick={() => killServer(currentPid)}>
-                kill server
-            </button>
-        {/if}
-        <div>
-            directories
-        </div>
-        <div class="dir-list">
-            {#if studentSubmissions.length > 0}
-                {#each studentSubmissions as student}
-                    <div class="dir-entry" onclick={() => handleStudentClick(student)}>
-                        {student.text}
+            {#each studentSubmissions as student}
+                <div class="left-dir-entry" onclick={() => handleStudentClick(student)}>
+                    <div class="inner">
+                        {student.text.split('(')[0]}
+                        <br>
+                        <small>
+                            {'(' + student.text.split('(')[1]}
+                        </small>
                     </div>
-                {/each}
-            {:else}
+                </div>
+            {/each}
+        </div>
+    {/if}
+    <div class="main-right">
+        <div class="flex-center">
+            directory operations
+            <small>
+                ({cdData})
+            </small>
+            <div>
+                <button onclick={openDirectory}>
+                    open submissions folder
+                </button>
+                <button onclick={toggleDirs}>
+                    {lsDirData.length > 0 ? "hide" : "list"}
+                    directories
+                </button>
+                <button onclick={ls}>
+                    {lsData.length > 0 ? "hide" : "list"}
+                    files
+                </button>
+                <button onclick={() => serverMode = !serverMode}>
+                    {serverMode ? "disable" : "enable"} server mode
+                </button>
+            </div>
+            <div>
+                <input type="text" bind:value={dirName}>
+                <button onclick={() => cd(dirName)}>change directory</button>
+            </div>
+        </div>
+        <div class="flex-center">
+            {#if currentStudent}
+                <div>
+                    currently running: {currentStudent.text.split('(')[0]}
+                </div>
+                <button onclick={() => killServer(currentPid)}>
+                    kill server
+                </button>
+            {/if}
+            <div>
+                directories
+            </div>
+            <div class="dir-list">
                 {#each lsDirData as dir}
                     {#if dir}
                         <div class="dir-entry" onclick={() => handleDirClick(dir)}>
@@ -188,13 +206,13 @@
                         </div>
                     {/if}
                 {/each}
-            {/if}
+            </div>
         </div>
+        <p>
+            {#each lsData as file}
+                {file}
+                <br>
+            {/each}
+        </p>
     </div>
-    <p>
-        {#each lsData as file}
-            {file}
-            <br>
-        {/each}
-    </p>
 </main>

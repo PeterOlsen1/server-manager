@@ -20,12 +20,60 @@ input {
     padding: 0.5em 1em;
 }
 
+
 main {
     display: flex;
     justify-content: center;
-    flex-direction: column;
-    align-items: center;
     gap: 1em;
+}
+
+.main-left {
+    flex-grow: 1;
+    display: flex;
+    justify-content: flex-start;
+    flex-direction: column;
+    gap: 1em;
+    text-align: center;
+    border-right: 1px solid white;
+    background-color: rgba(255, 255, 255, 0.05);
+
+    max-width: 20vw;
+
+    /* padding-left: 1em;
+    padding-right: 1em; */
+
+    height: calc(100vh - 3em);
+    overflow-y: scroll;
+}
+
+.left-dir-entry {
+    width: 100%;
+    padding-top: 0.25em;
+    padding-bottom: 0.25em;
+    cursor: pointer;
+
+    .inner {
+        width: 90%;
+        text-wrap: wrap;
+    }
+
+    background-color: transparent;
+    transition: background-color 0.1s;
+
+    &:hover {
+        background-color: rgba(200, 200, 200, 0.2);
+    }
+}
+
+.main-right {
+    flex-grow: 2;
+    display: flex;
+    /* justify-content: center; */
+    flex-direction: column;
+    /* align-items: center; */
+    gap: 1em;
+    padding-top: 2em;
+    padding-right: 1em;
 }
 
 .flex-center {
@@ -37,10 +85,10 @@ main {
 }
 
 .dir-list {
-    width: 95vw;
+    width: 100%;
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(13em, 3fr));
-    gap: 0.25em;
+    grid-template-columns: repeat(auto-fill, minmax(12em, 3fr));
+    gap: 0.5em;
 }
 
 .dir-entry {

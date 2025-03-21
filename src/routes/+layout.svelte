@@ -18,11 +18,8 @@
     }
 
     .body {
-        margin-top: 2em;
         width: 100%;
         min-height: calc(100vh - 10em);
-        /* display: grid;
-        place-items: center; */
     }
 
     img {
