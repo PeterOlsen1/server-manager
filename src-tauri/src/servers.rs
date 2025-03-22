@@ -1,4 +1,5 @@
-use std::process::{Stdio, ChildStdout};
+use std::process::Stdio;
+// use std::sync::Arc;
 
 use tauri::{AppHandle, Emitter};
 
@@ -6,7 +7,8 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::task::spawn;
 use tokio::process::{Command, Child};
 
-pub fn handle_server_run(file_name: String, port: i32, app: AppHandle) -> String {
+
+pub async fn handle_server_run(file_name: String, port: i32, app: AppHandle) -> String {
     //at this point we need to fork and exec the server
     //use python3 since i assume we are all grading on linux machines
     let child_result = if file_name.ends_with(".py") {
@@ -42,13 +44,13 @@ pub fn handle_server_run(file_name: String, port: i32, app: AppHandle) -> String
         None => return String::from("Error capturing stderr"),
     };
 
+    //spawn tasks to listen to stdout and stderr
     let app_clone = app.clone();
     spawn(async move {
         let reader = BufReader::new(stdout);
         let mut lines = reader.lines();
 
         while let Ok(Some(line)) = lines.next_line().await {
-            dbg!(&line); // Debug statement to trace stdout lines
             let _ = app_clone.emit("server-output", line);
         }
     });
@@ -59,14 +61,13 @@ pub fn handle_server_run(file_name: String, port: i32, app: AppHandle) -> String
         let mut lines = reader.lines();
 
         while let Ok(Some(line)) = lines.next_line().await {
-            dbg!(&line); // Debug statement to trace stderr lines
             let _ = app_clone.emit("server-error", line);
         }
     });
 
-    // Detach the process
+    //detach the process and run it in the background (we don't care about the result)
     spawn(async move {
-        let _ = child.wait().await; // Let process run in background
+        let _ = child.wait().await;
     });
 
     process_id
@@ -77,7 +78,11 @@ pub fn handle_server_run(file_name: String, port: i32, app: AppHandle) -> String
 /// Run a python server
 pub fn run_python_server(fname: String, port: i32) -> Result<Child, String> {
     //set up command to execute
-    let mut command = Command::new("python3");
+    let mut command = if cfg!(target_os = "windows") {
+        Command::new("python") // Use "python" on Windows
+    } else {
+        Command::new("python3") // Use "python3" on Linux/macOS
+    };
     command.arg("-u");
     command.arg(&fname);
     if port > 0 {
@@ -89,9 +94,9 @@ pub fn run_python_server(fname: String, port: i32) -> Result<Child, String> {
     command.stderr(Stdio::piped());
 
     //create child process
-    let mut child = match command.spawn().map_err(|e| e.to_string()) {
+    let child = match command.spawn().map_err(|e| e.to_string()) {
         Ok(c) => c,
-        Err(e) => return Err(String::from("Error creating child process")),
+        Err(_) => return Err(String::from("Error creating child process")),
     };
 
     Ok(child)

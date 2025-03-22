@@ -1,27 +1,18 @@
 use std::path::Path;
 use std::{collections::HashMap, fs};
-use std::process::{Stdio};
-use std::io::{BufRead};
-use std::sync::{Arc};
 
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Emitter};
-
-use tokio::sync::mpsc::channel;
-use tokio::sync::Mutex;
-use tokio::io::{AsyncBufReadExt, BufReader};
-use tokio::task::spawn;
-use tokio::sync::mpsc::Sender;
-use tokio::process::{Command, Child};
+use tauri::AppHandle;
 
 mod servers;
 use servers::{
-    handle_server_run, kill_server, run_python_server
+    handle_server_run, kill_server
 };
 
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 
+// define structs for reading YAML
 #[derive(Debug, Serialize, Deserialize)]
 struct Submission {
     submitters: Vec<Submitter>,
@@ -96,7 +87,7 @@ fn read_submission_dir() -> String {
     }
 
     // read the file
-    let mut ret = String::new();
+    let ret: String;
     let content_result = fs::read_to_string(filename);
     let content: String;
     match content_result {
@@ -181,10 +172,9 @@ async fn handle_student_click(submission_id: String, port: i32, app: AppHandle) 
         if file_name.ends_with(".py") || file_name.ends_with(".js") {
             cd(&submission_path);
 
-            let process_id = handle_server_run(file_name.to_string(), port, app);
+            let process_id = handle_server_run(file_name.to_string(), port, app).await;
 
             cd("../..");
-            dbg!("Returning process ID");
 
             // Return the process ID
             return process_id;

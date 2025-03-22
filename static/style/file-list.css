@@ -118,12 +118,13 @@ main {
 }
 
 .terminal {
-    min-width: 60vw;
-    min-height: 40vh;
+    width: 60vw;
+    height: 40vh;
     background-color: rgba(255, 255, 255, 0.1);
     border: 1px solid white;
 
     overflow-y: scroll;
     padding: 1em;
     border-radius: 0.25em;
+    font-size: 0.8em;
 }

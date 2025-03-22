@@ -1,13 +1,18 @@
 <script lang="ts">
     import { invoke } from "@tauri-apps/api/core";
     import { open } from '@tauri-apps/plugin-dialog';
-    import { listen } from '@tauri-apps/api/event';
+    import { listen, type UnlistenFn } from '@tauri-apps/api/event';
     import { onMount } from "svelte";
 
     interface Student {
         sid: string;
         text: string;
         submissionId: string;
+    }
+
+    interface Listeners {
+        stdout: Promise<UnlistenFn>;
+        stderr: Promise<UnlistenFn>;
     }
 
     let lsData: string[] = $state([]);
@@ -19,6 +24,7 @@
     let studentSubmissions: any[] = $state([]);
     let terminalText: string = $state("");
     let currentStudent: Student | null = $state(null);
+    let listeners: Listeners | null = $state(null);
     let showDirsWithStudents = $state(false);
     let currentPid = 0;
 
@@ -125,7 +131,7 @@
         }
 
         //construct arguments and start the server
-        const args: any = {submissionId: student.submissionId}
+        const args: any = {submissionId: student.submissionId };
         args.port = portEnabled ? realPort : 0;
         const data = await invoke("handle_student_click", args);
 
@@ -133,21 +139,25 @@
             console.log("error starting server: " + data);
             return;
         }
+
         currentStudent = student;
         currentPid = parseInt(data as string);
         console.log("server started with pid: " + currentPid);
 
-        console.log('listening for python server output');
-        listen("server-output", (event) => {
-            console.log(event.payload);
-            terminalText += event.payload + "\n";
-        });
+        //unlisten from previous listeners
+        if (listeners) {
+            (await listeners.stdout)();
+            (await listeners.stderr)();
+        }
 
-        listen("server-error", (event) => {
-            console.log("SERVER ERROR!!");
-            console.log(event.payload);
-            terminalText += event.payload + "\n";
-        });
+        listeners = {
+            stdout: listen("server-output", (event) => {
+                terminalText += event.payload + "\n";
+            }),
+            stderr: listen("server-error", (event) => {
+                terminalText += event.payload + "\n";
+            })
+        }
     }
 
     async function killServer(pid: number) {
@@ -188,7 +198,6 @@
     {/if}
     <div class="main-right">
         <div class="flex-center">
-            directory operations
             <small>
                 ({cdData})
             </small>
