@@ -15,6 +15,7 @@
         font-size: 1.2em;
 
         background-color: rgba(255, 255, 255, 0.1);
+        background: blur(10px);
     }
 
     .body {

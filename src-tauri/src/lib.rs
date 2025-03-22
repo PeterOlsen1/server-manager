@@ -1,8 +1,20 @@
 use std::path::Path;
 use std::{collections::HashMap, fs};
-use std::process::{Command, Stdio};
+use std::process::{Stdio};
+use std::io::{BufRead};
+use std::sync::{Arc};
 
 use serde::{Deserialize, Serialize};
+use tauri::{AppHandle, Emitter};
+
+use tokio::sync::mpsc::channel;
+use tokio::sync::Mutex;
+use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::task::spawn;
+use tokio::sync::mpsc::Sender;
+use tokio::process::Command;
+
+
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -117,7 +129,7 @@ fn read_submission_dir() -> String {
 /// This should boot up a server for the given student ID
 /// and return the process ID so that we can kill it later.
 #[tauri::command]
-fn handle_student_click(submission_id: String, port: i32) -> String {
+fn handle_student_click(submission_id: String, port: i32, app: AppHandle) -> String {
     let mut submission_path = format!("./submission_{}", submission_id);
     if !Path::new(&submission_path).exists() {
         return "No submission found for this student".to_string();
@@ -171,12 +183,9 @@ fn handle_student_click(submission_id: String, port: i32) -> String {
             //at this point we need to fork and exec the server
             //use python3 since i assume we are all grading on linux machines
             let child_result = if file_name.ends_with(".py") {
-                run_python_server(file_name.to_string(), port)
+                run_python_server(file_name.to_string(), port, app)
             } else {
-                Command::new("node")
-                    .arg(&file_name)
-                    .stdout(Stdio::piped())
-                    .spawn()
+                run_node_server(file_name.to_string(), port, app)
             };
 
             let child;
@@ -197,41 +206,136 @@ fn handle_student_click(submission_id: String, port: i32) -> String {
 }
 
 #[tauri::command]
-fn run_python_server(fname: String, port: i32) -> Result<std::process::Child, std::io::Error> {
-    let child = if port > 0 {
-        Command::new("python3")
-        .arg(&fname)
-        .arg(&port.to_string())
-        .stdout(Stdio::piped())
-        .spawn()
+fn run_python_server(fname: String, port: i32, app: AppHandle) -> Result<std::process::Child, std::io::Error> {
+    //set up command to execute
+    let mut command = Command::new("python3");
+    command.arg(&fname);
+    if port > 0 {
+        command.arg(&port.to_string());
     }
-    else {
-        Command::new("python3")
-        .arg(&fname)
-        .stdout(Stdio::piped())
-        .spawn()
+    //capture stdout
+    command.stdout(Stdio::piped());
+
+    //create child process
+    let mut child = match command.spawn().map_err(|e| e.to_string()) {
+        Ok(c) => c,
+        Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
     };
 
-    let ret_child = match child {
-        Ok(child) => child,
-        Err(e) => {
-            // app_handle.emit("python-output", format!("Error: {}", e)).unwrap();
-            return Err(e);
+    //if this wait works, that's bad!
+    match child.try_wait() {
+        Ok(Some(status)) => {
+            return Err(std::io::Error::new(std::io::ErrorKind::Other, "Process exited!"))
         }
+        Ok(None) => {
+            //process still running. good for a server
+        }
+        Err(e) => {
+            return Err(std::io::Error::new(std::io::ErrorKind::Other, "Process errored: e"))
+        }
+    }
+    
+    //get stdout from the child
+    let stdout = match child.stdout.take() {
+        Some(s) => s,
+        None => return Err(std::io::Error::new(std::io::ErrorKind::Other, "Error capturing stdout")),
     };
-    // thread::spawn({
-    //     let app_handle = Arc::clone(&app_handle);
-    //     move || {
-    //         let reader = BufReader::new(stdout);
-    //         for line in reader.lines() {
-    //             if let Ok(line) = line {
-    //                 let _ = app_handle.emit("python-output", line);
-    //             }
-    //         }
-    //     }
-    // });
 
-    Ok(ret_child)
+    //get stdout reader
+    // let reader = BufReader::new(stdout);
+
+    // create tauri channel
+    // https://v2.tauri.app/develop/calling-frontend/#channels
+    let (tx, mut rx) = channel::<String>(10);
+    let tx_arc = Arc::new(Mutex::new(Some(tx)));
+
+    // spawn task to read stdout and send to channel
+    let tx_clone: Arc<Mutex<Option<Sender<String>>>> = Arc::clone(&tx_arc);
+    spawn(async move {
+        let reader = BufReader::new(stdout);
+        let mut lines = reader.lines();
+
+        while let Ok(Some(line)) = lines.next_line().await {
+            dbg!(&line);
+            // Lock the Mutex and send the line
+            let mut tx_guard = tx_clone.lock().await;
+            if let Some(tx) = tx_guard.as_ref() {
+                if tx.send(line).await.is_err() {
+                    break; // Stop if the receiver is dropped
+                }
+            }
+        }
+        // Drop the sender to signal that no more messages will be sent
+        tx_clone.lock().await.take();
+    });
+
+    // Spawn another task to emit messages to frontend
+    let app_clone = app.clone();
+    spawn(async move {
+        while let Some(message) = rx.recv().await {
+            let _ = app_clone.emit("python-server-output", message);
+        }
+    });
+
+    Ok(child)
+}
+
+#[tauri::command]
+async fn run_node_server(fname: String, port: i32, app: AppHandle) -> Result<(), String> {
+    // Set up command to execute
+    let mut command = Command::new("node");
+    command.arg(&fname);
+    if port > 0 {
+        command.arg(&port.to_string());
+    }
+    // Capture stdout
+    command.stdout(std::process::Stdio::piped());
+
+    // Create child process
+    let mut child = match command.spawn() {
+        Ok(c) => c,
+        Err(e) => return Err(format!("Failed to spawn process: {}", e)),
+    };
+
+    // Get stdout from the child
+    let stdout = match child.stdout.take() {
+        Some(s) => s,
+        None => return Err("Error capturing stdout".to_string()),
+    };
+
+    // Create tauri channel
+    let (tx, mut rx) = channel::<String>(10);
+    let tx_arc = Arc::new(Mutex::new(Some(tx)));
+
+    // Spawn task to read stdout and send to channel
+    let tx_clone = Arc::clone(&tx_arc);
+    spawn(async move {
+        let reader = BufReader::new(stdout); // Use tokio::process::ChildStdout directly
+        let mut lines = reader.lines();
+
+        while let Ok(Some(line)) = lines.next_line().await {
+            dbg!(&line);
+            // Lock the Mutex and send the line
+            let mut tx_guard = tx_clone.lock().await;
+            if let Some(tx) = tx_guard.as_ref() {
+                if tx.send(line).await.is_err() {
+                    break; // Stop if the receiver is dropped
+                }
+            }
+        }
+        // Drop the sender to signal that no more messages will be sent
+        tx_clone.lock().await.take();
+    });
+
+    // Spawn another task to emit messages to frontend
+    let app_clone = app.clone();
+    spawn(async move {
+        while let Some(message) = rx.recv().await {
+            let _ = app_clone.emit("node-server-output", message);
+        }
+    });
+
+    Ok(child)
 }
 
 #[tauri::command]

@@ -1,6 +1,7 @@
 <script lang="ts">
     import { invoke } from "@tauri-apps/api/core";
     import { open } from '@tauri-apps/plugin-dialog';
+    import { listen } from '@tauri-apps/api/event';
     import { onMount } from "svelte";
 
     interface Student {
@@ -16,7 +17,9 @@
     let cdData: string = $state("");
     let lsDirData: string[] = $state([]);
     let studentSubmissions: any[] = $state([]);
+    let terminalText: string = $state("");
     let currentStudent: Student | null = $state(null);
+    let showDirsWithStudents = $state(false);
     let currentPid = 0;
 
     async function ls() {
@@ -132,14 +135,23 @@
         }
         currentStudent = student;
         currentPid = parseInt(data as string);
+        console.log("server started with pid: " + currentPid);
+
+        console.log('listening for python server output');
+        listen("python-server-output", (event) => {
+            console.log(event.payload);
+            terminalText += event.payload + "\n";
+        });
     }
 
     async function killServer(pid: number) {
         await invoke("kill_server", {pid});
         currentStudent = null;
         currentPid = 0;
+        terminalText = "";
     }
 
+    //get the working directory on mount
     onMount(() => {
         pwd();
     })
@@ -199,15 +211,7 @@
             </div>
         </div>
         <div class="flex-center">
-            {#if currentStudent}
-                <div>
-                    currently running: {currentStudent.text.split('(')[0]}
-                </div>
-                <button onclick={() => killServer(currentPid)}>
-                    kill server
-                </button>
-            {/if}
-            {#if lsDirData.length > 0}
+            {#if lsDirData.length > 0 && studentSubmissions.length == 0}
                 <div style="font-weight: 600;">
                     directories
                 </div>
@@ -221,6 +225,26 @@
                     {/each}
                 </div>
             {/if}
+            {#if studentSubmissions.length != 0}
+                <button onclick={() => showDirsWithStudents = !showDirsWithStudents}>
+                    {showDirsWithStudents ? "hide" : "show"} all directories
+                </button>
+
+                {#if showDirsWithStudents}
+                    <div style="font-weight: 600;">
+                        directories
+                    </div>
+                    <div class="dir-list">
+                        {#each lsDirData as dir}
+                            {#if dir}
+                                <div class="dir-entry" onclick={() => handleDirClick(dir)}>
+                                    {dir}
+                                </div>
+                            {/if}
+                        {/each}
+                    </div>
+                {/if}
+            {/if}
         </div>
         <div class="flex-center">
             {#if lsData.length > 0}
@@ -233,5 +257,27 @@
                 {/each}
             {/if}
         </div>
+        {#if currentStudent}
+            <div class="flex-center">
+                <div>
+                    currently running: {currentStudent.text.split('(')[0]}
+                </div>
+                <button onclick={() => killServer(currentPid)}>
+                    kill server
+                </button>
+            </div>
+            <div class="flex-center">
+                <div style="font-weight: 600;">
+                    terminal output
+                </div>
+                <div class="terminal">
+                    {#each terminalText.split('\n') as line}
+                        {line}
+                        <br>
+                    {/each}
+                </div>
+            </div>
+        {/if}
+        <br>
     </div>
 </main>

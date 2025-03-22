@@ -3,11 +3,13 @@ button {
     padding: 0.5em 1em;
     border-radius: 0.25em;
     /* background-color: white; */
+    color: white;
+    background-color: rgba(255, 255, 255, 0.1);
 
     transition: background-color 0.1s;
 
     &:hover {
-        background-color: rgba(200, 200, 200, 0.2);
+        background-color: rgba(255, 255, 255, 0.2);
         cursor: pointer;
     }
 }
@@ -79,6 +81,9 @@ main {
     padding-top: 2em;
     padding-right: 1em;
     padding-left: 1em;
+
+    max-height: calc(100vh - 6em);
+    overflow-y: scroll;
 }
 
 .flex-center {
@@ -110,4 +115,15 @@ main {
     &:hover {
         background-color: rgba(200, 200, 200, 0.2);
     }
+}
+
+.terminal {
+    min-width: 60vw;
+    min-height: 40vh;
+    background-color: rgba(255, 255, 255, 0.1);
+    border: 1px solid white;
+
+    overflow-y: scroll;
+    padding: 1em;
+    border-radius: 0.25em;
 }
