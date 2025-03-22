@@ -138,7 +138,13 @@
         console.log("server started with pid: " + currentPid);
 
         console.log('listening for python server output');
-        listen("python-server-output", (event) => {
+        listen("server-output", (event) => {
+            console.log(event.payload);
+            terminalText += event.payload + "\n";
+        });
+
+        listen("server-error", (event) => {
+            console.log("SERVER ERROR!!");
             console.log(event.payload);
             terminalText += event.payload + "\n";
         });
