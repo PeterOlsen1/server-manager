@@ -124,6 +124,10 @@ fn read_submission_dir() -> String {
 /// 
 /// This should boot up a server for the given student ID
 /// and return the process ID so that we can kill it later.
+/// 
+/// This could probably be done recursively to find
+/// the server file, but this method just searches 2 levels of
+/// directories. any more thanm that would be very weird
 #[tauri::command]
 async fn handle_student_click(submission_id: String, port: i32, app: AppHandle) -> String {
     let mut submission_path = format!("./submission_{}", submission_id);
@@ -137,29 +141,49 @@ async fn handle_student_click(submission_id: String, port: i32, app: AppHandle) 
         Err(_) => return "Error reading student submission directory".to_string(),
     };
 
-    // only get the first entry, there should be only one folder
-    let entry = match entries.into_iter().next() {
-        Some(Ok(dir_entry)) => dir_entry,
-        Some(Err(_)) | None => return format!("Could not find student submission in directory: {}", submission_path),
-    };
-
-    if !entry.file_type().expect("Error reading submisison directory").is_dir() {
-        return format!("Student submission is not a directory: {}", entry.path().to_string_lossy());
-    }
-
-    // read the directory inside of the submission directory
-    submission_path = entry.path().to_string_lossy().to_string();
-    let entries = match fs::read_dir(&submission_path) {
-        Ok(entries) => entries,
-        Err(_) => return "Error reading student submission directory".to_string(),
-    };
-
-    //read the entries. we want to find python or js file
+    //read top level directory
     for entry in entries {
         let entry = match entry {
             Ok(e) => e,
             Err(_) => continue,
         };
+
+        //read in one extra directory level
+        if entry.file_type().expect("Error reading submisison directory").is_dir() {            
+            // read the directory inside of the submission directory
+            submission_path = entry.path().to_string_lossy().to_string();
+            let entries = match fs::read_dir(&submission_path) {
+                Ok(entries) => entries,
+                Err(_) => return "Error reading student submission directory".to_string(),
+            };
+
+            //read the entries. we want to find python or js file
+            for entry in entries {
+                let entry = match entry {
+                    Ok(e) => e,
+                    Err(_) => continue,
+                };
+
+                // get the file name, just continue if it doesn't work, no need to throw error
+                let file_name = entry.file_name();
+                if file_name.is_empty() {
+                    continue;
+                }
+                let file_name = file_name.to_str().unwrap_or_else(|| "file_name_error");
+
+                //run the dang server (nobody should have python or js on their top level that isn't a server)
+                if file_name.ends_with(".py") || file_name.ends_with(".js") && file_name.to_lowercase().contains("server") {
+                    cd(&submission_path);
+
+                    let process_id = handle_server_run(file_name.to_string(), port, app).await;
+
+                    cd("../..");
+
+                    // Return the process ID
+                    return process_id;
+                }
+            } // end inner for
+        }
 
         // get the file name, just continue if it doesn't work, no need to throw error
         let file_name = entry.file_name();
@@ -169,17 +193,17 @@ async fn handle_student_click(submission_id: String, port: i32, app: AppHandle) 
         let file_name = file_name.to_str().unwrap();
 
         //run the dang server (nobody should have python or js on their top level that isn't a server)
-        if file_name.ends_with(".py") || file_name.ends_with(".js") {
+        if (file_name.ends_with(".py") || file_name.ends_with(".js")) && file_name.to_lowercase().contains("server") {
             cd(&submission_path);
 
             let process_id = handle_server_run(file_name.to_string(), port, app).await;
 
-            cd("../..");
+            cd("..");
 
             // Return the process ID
             return process_id;
         }
-    }
+    } // end outer for
 
     return "No server file found in student submission".to_string();
 }

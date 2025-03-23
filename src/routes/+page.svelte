@@ -3,6 +3,7 @@
     import { open } from '@tauri-apps/plugin-dialog';
     import { listen, type UnlistenFn } from '@tauri-apps/api/event';
     import { onMount } from "svelte";
+    import Swal from 'sweetalert2'
 
     interface Student {
         sid: string;
@@ -123,6 +124,10 @@
         let realPort = parseInt(port);
         if (isNaN(realPort) || realPort < 1 || realPort > 65535) {
             console.log("invalid port: " + port);
+            Toast.fire({
+                icon: 'error',
+                text: 'Invalid port number'
+            });
             return;
         }
 
@@ -137,6 +142,11 @@
 
         if (!parseInt(data as string)) {
             console.log("error starting server: " + data);
+            Toast.fire({
+                icon: 'error',
+                title: "Server failed to start",
+                text: data as string
+            });
             return;
         }
 
@@ -155,6 +165,9 @@
                 terminalText += event.payload + "\n";
             }),
             stderr: listen("server-error", (event) => {
+                if (!terminalText) {
+
+                }
                 terminalText += event.payload + "\n";
             })
         }
@@ -167,10 +180,29 @@
         terminalText = "";
     }
 
+
+    const Toast = Swal.mixin({
+        toast: true,
+        position: 'bottom-end',
+        iconColor: 'white',
+        customClass: {
+            popup: 'colored-toast',
+        },
+        showClass: {
+            popup: '',
+        },
+        hideClass: {
+            popup: '',
+        },
+        showConfirmButton: false,
+        timer: 2000,
+        timerProgressBar: true,
+    });
+
     //get the working directory on mount
     onMount(() => {
         pwd();
-    })
+    });
 </script>
 
 <svelte:head>

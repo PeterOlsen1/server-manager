@@ -128,3 +128,9 @@ main {
     border-radius: 0.25em;
     font-size: 0.8em;
 }
+
+.colored-toast {
+    background-color: red;
+    color: white;
+    font-size: 0.8em;
+}
