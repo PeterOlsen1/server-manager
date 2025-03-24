@@ -7,4 +7,3 @@ Constructed with Tauri / Vite / SvelteKit by Peter Olsen
 
 TODO:
 - handle javascript (npm i)
-- light mode?
