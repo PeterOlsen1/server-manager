@@ -25,6 +25,9 @@ struct Submitter {
     email: String,
 }
 
+///
+/// Return the current working directory
+/// 
 #[tauri::command]
 fn pwd() -> String {
     std::env::current_dir()
@@ -33,6 +36,10 @@ fn pwd() -> String {
         .to_string()
 }
 
+///
+/// List all files in the current directory.
+/// Separate each file with a newline.
+/// 
 #[tauri::command]
 fn ls() -> String {
     let mut result = String::new();
@@ -45,6 +52,10 @@ fn ls() -> String {
     result
 }
 
+///
+/// List all directories in the current directory.
+/// Each directory is separated by a newline.
+/// 
 #[tauri::command]
 fn ls_directories() -> String {
     let mut result = String::new();
@@ -59,6 +70,13 @@ fn ls_directories() -> String {
     result
 }
 
+///
+/// Change the current directory to the
+/// one passed in.
+/// 
+/// There is minimal chance of error, except for
+/// the current_dir() which shoudldn't fail.
+///
 #[tauri::command]
 fn cd(name: &str) -> String {
     if name.len() == 0 {
@@ -79,6 +97,10 @@ fn cd(name: &str) -> String {
         .to_string()
 }
 
+///
+/// If we are currently in a directory with a submission_metadata.yml file,
+/// read the file and return the contents as a JSON string.
+/// 
 #[tauri::command]
 fn read_submission_dir() -> String {
     let filename = "submission_metadata.yml";
@@ -128,6 +150,7 @@ fn read_submission_dir() -> String {
 /// This could probably be done recursively to find
 /// the server file, but this method just searches 2 levels of
 /// directories. any more thanm that would be very weird
+/// 
 #[tauri::command]
 async fn handle_student_click(submission_id: String, port: i32, app: AppHandle) -> String {
     let mut submission_path = format!("./submission_{}", submission_id);

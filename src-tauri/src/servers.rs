@@ -7,19 +7,32 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::task::spawn;
 use tokio::process::{Command, Child};
 
-
+///
+/// Handle starting a server
+/// 
+/// This function can handle either running python or node servers.
+///
+/// If the file name ends with ".py", a python server will be started.
+/// If the file name ends with ".js", a node server will be started.
+///
+/// If the port number is > 0, the server will be started with the extra
+/// "port" argument, which is basically just a number at the end of the
+/// rest of the arguments.
+/// 
+/// Upon a successful start, event emitters in separate processes will
+/// be spawned to:
+/// * listen to stdout and emit to _server-output_
+/// * listen to stderr and emit to _server-error_
+/// 
+/// These listeners will automatically die after the server is killed.
+/// 
 pub async fn handle_server_run(file_name: String, port: i32, app: AppHandle) -> String {
     //at this point we need to fork and exec the server
     //use python3 since i assume we are all grading on linux machines
     let child_result = if file_name.ends_with(".py") {
         run_python_server(file_name.to_string(), port)
     } else {
-        Command::new("node")
-            .arg(&file_name)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .map_err(|e| e.to_string())
+        run_js_server(file_name.to_string(), port).await
     };
 
     let mut child;
@@ -65,17 +78,21 @@ pub async fn handle_server_run(file_name: String, port: i32, app: AppHandle) -> 
         }
     });
 
-    //detach the process and run it in the background (we don't care about the result)
-    spawn(async move {
-        let _ = child.wait().await;
-    });
-
     process_id
 }
 
 
 ///
 /// Run a python server
+/// 
+/// This function runs the following command:
+/// python3 -u <fname> <port?>
+/// 
+/// Upon error, an error string will be returned in the result
+/// to indicate what went wrong.
+/// 
+/// On success, the child process will be returned.
+/// 
 pub fn run_python_server(fname: String, port: i32) -> Result<Child, String> {
     //set up command to execute
     let mut command = if cfg!(target_os = "windows") {
@@ -102,6 +119,58 @@ pub fn run_python_server(fname: String, port: i32) -> Result<Child, String> {
     Ok(child)
 }
 
+///
+/// Run a javascript server
+/// 
+/// This function runs the following commands:
+/// npm i
+/// node <fname> <port?>
+/// 
+/// Upon error, an error string will be returned in the result
+/// to indicate what went wrong.
+/// 
+/// On success, the child process will be returned.
+/// 
+pub async fn run_js_server(fname: String, port: i32) -> Result<Child, String> {
+    //install node modules
+    let npm_i = Command::new("npm")
+        .arg("i")
+        .output();
+
+    match npm_i.await {
+        Ok(_) => (),
+        Err(e) => return Err(format!("Error installing node modules: {}", e)),
+    };
+    
+    //set up command to execute
+    let mut command = Command::new("node");
+    command.arg(&fname);
+    if port > 0 {
+        command.arg(&port.to_string());
+    }
+
+    //capture stdout and stderr
+    command.stdout(Stdio::piped());
+    command.stderr(Stdio::piped());
+
+    //create child process
+    let child = match command.spawn().map_err(|e| e.to_string()) {
+        Ok(c) => c,
+        Err(_) => return Err(String::from("Error creating child process")),
+    };
+
+    Ok(child)
+}
+
+/// 
+/// Kill a server running with a given process id, 
+/// send kill -9 to ensure that is shuts down
+/// 
+/// Servers for homework 4 may have difficulties
+/// shutting down because of the libraries that are
+/// used, make sure to wait a few seconds after shutting
+/// down a homework 4 server before starting a new one
+/// 
 #[tauri::command]
 pub async fn kill_server(pid: u32) -> String {
     let output = Command::new("kill")
